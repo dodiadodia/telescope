@@ -13,7 +13,7 @@ stages:
           cloud: azure
           regions:
             - eastus2
-          topology: k8s-crud-gpu
+          topology: create-delete-k8s-python
           engine: crud
           matrix:
             node_pool_crud_standard:
