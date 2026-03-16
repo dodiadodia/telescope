@@ -60,12 +60,32 @@ variable "network_dataplane" {
   default     = null
 }
 
+variable "aks_aad_enabled" {
+  description = "Indicates whether Azure Active Directory integration is enabled for AKS"
+  type        = bool
+  default     = false
+}
+
+variable "key_vaults" {
+  description = "Map of Key Vault configurations with keys"
+  type        = map(any)
+  default     = {}
+}
+
+variable "disk_encryption_sets" {
+  description = "Map of Disk Encryption Set names to their IDs for OS/data disk encryption. Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys"
+  type        = map(string)
+  default     = {}
+}
+
 variable "aks_config" {
   type = object({
-    role        = string
-    aks_name    = string
-    dns_prefix  = string
-    subnet_name = optional(string, null)
+    role         = string
+    aks_name     = string
+    dns_prefix   = string
+    subnet_name  = optional(string, null)
+    sku_tier     = string
+    support_plan = optional(string, "KubernetesOfficial")
     network_profile = optional(object({
       network_plugin      = optional(string, null)
       network_plugin_mode = optional(string, null)
@@ -76,7 +96,6 @@ variable "aks_config" {
       service_cidr        = optional(string, null)
       dns_service_ip      = optional(string, null)
     }))
-    sku_tier = string
     default_node_pool = object({
       name                         = string
       subnet_name                  = optional(string, null)
@@ -145,6 +164,13 @@ variable "aks_config" {
     web_app_routing = optional(object({
       dns_zone_names = list(string)
     }), null)
+    kms_config = optional(object({
+      key_name       = string
+      key_vault_name = string
+      network_access = optional(string, "Public")
+    }), null)
+    # Disk Encryption Set configuration for OS disk encryption with Customer-Managed Keys
+    disk_encryption_set_name = optional(string, null) # Name of the Disk Encryption Set to use for OS disk encryption
   })
 
   validation {

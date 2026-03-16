@@ -1,27 +1,33 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id                 = string
-    region                 = string
-    aks_sku_tier           = optional(string, null)
-    aks_kubernetes_version = optional(string, null)
-    aks_network_policy     = optional(string, null)
-    aks_network_dataplane  = optional(string, null)
-    aks_custom_headers     = optional(list(string), [])
-    k8s_machine_type       = optional(string, null)
-    k8s_os_disk_type       = optional(string, null)
+    run_id                            = string
+    region                            = string
+    aks_sku_tier                      = optional(string, null)
+    aks_kubernetes_version            = optional(string, null)
+    aks_network_policy                = optional(string, null)
+    aks_network_dataplane             = optional(string, null)
+    aks_aad_enabled                   = optional(bool, null)
+    aks_custom_headers                = optional(list(string), [])
+    k8s_machine_type                  = optional(string, null)
+    k8s_os_disk_type                  = optional(string, null)
+    enable_apiserver_vnet_integration = optional(bool, false)
+    public_key_path                   = optional(string, null)
+
     aks_cli_system_node_pool = optional(object({
-      name        = string
-      node_count  = number
-      vm_size     = string
-      vm_set_type = string
+      name         = string
+      node_count   = number
+      vm_size      = string
+      vm_set_type  = string
+      os_disk_type = optional(string, "Managed")
     }))
     aks_cli_user_node_pool = optional(
       list(object({
-        name        = string
-        node_count  = number
-        vm_size     = string
-        vm_set_type = string
+        name         = string
+        node_count   = number
+        vm_size      = string
+        vm_set_type  = string
+        os_disk_type = optional(string, "Managed")
         optional_parameters = optional(list(object({
           name  = string
           value = string
@@ -69,6 +75,12 @@ variable "deletion_delay" {
   default     = "2h"
 }
 
+variable "tags" {
+  description = "Optional tags to apply to all resources"
+  type        = map(string)
+  default     = {}
+}
+
 variable "public_ip_config_list" {
   description = "A list of public IP names"
   type = list(object({
@@ -88,10 +100,11 @@ variable "network_config_list" {
     vnet_name          = string
     vnet_address_space = string
     subnet = list(object({
-      name                         = string
-      address_prefix               = string
-      service_endpoints            = optional(list(string))
-      pls_network_policies_enabled = optional(bool)
+      name                                      = string
+      address_prefix                            = string
+      service_endpoints                         = optional(list(string))
+      private_endpoint_network_policies_enabled = optional(bool)
+      pls_network_policies_enabled              = optional(bool)
       delegations = optional(list(object({
         name                       = string
         service_delegation_name    = string
@@ -103,8 +116,9 @@ variable "network_config_list" {
       nic_name              = string
       subnet_name           = string
       ip_configuration_name = string
-      public_ip_name        = string
-      count                 = optional(number, 1)
+      # Optional: when omitted or empty, the NIC will be created without a public IP.
+      public_ip_name = optional(string)
+      count          = optional(number, 1)
     }))
     nsr_rules = list(object({
       name                       = string
@@ -126,12 +140,176 @@ variable "network_config_list" {
   default = []
 }
 
+variable "route_table_config_list" {
+  description = "List of route table configurations"
+  type = list(object({
+    name                          = string
+    bgp_route_propagation_enabled = optional(bool, true)
+    routes = list(object({
+      name                         = string
+      address_prefix               = optional(string, null)
+      address_prefix_publicip_name = optional(string, null)
+      next_hop_type                = string
+      next_hop_in_ip_address       = optional(string, null)
+      next_hop_firewall_name       = optional(string, null)
+    }))
+    subnet_associations = list(object({
+      subnet_name = string
+    }))
+  }))
+  default = []
+}
+
+
+variable "firewall_config_list" {
+  description = "List of firewall configurations"
+  type = list(object({
+    name                  = string
+    network_role          = optional(string)
+    subnet_name           = optional(string)
+    public_ip_names       = optional(list(string), [])
+    sku_name              = optional(string, "AZFW_VNet")
+    sku_tier              = optional(string, "Standard")
+    firewall_policy_id    = optional(string)
+    threat_intel_mode     = optional(string, "Alert")
+    dns_proxy_enabled     = optional(bool, false)
+    dns_servers           = optional(list(string))
+    ip_configuration_name = optional(string, "firewall-ipconfig")
+    nat_rule_collections = optional(list(object({
+      name     = string
+      priority = number
+      action   = optional(string, "Dnat")
+      rules = list(object({
+        name                  = string
+        source_addresses      = optional(list(string))
+        source_ip_groups      = optional(list(string))
+        destination_ports     = list(string)
+        destination_addresses = list(string)
+        translated_address    = string
+        translated_port       = string
+        protocols             = list(string)
+      }))
+    })))
+    network_rule_collections = optional(list(object({
+      name     = string
+      priority = number
+      action   = string
+      rules = list(object({
+        name                  = string
+        source_addresses      = optional(list(string))
+        source_ip_groups      = optional(list(string))
+        destination_ports     = list(string)
+        destination_addresses = optional(list(string))
+        destination_fqdns     = optional(list(string))
+        destination_ip_groups = optional(list(string))
+        protocols             = list(string)
+      }))
+    })))
+    application_rule_collections = optional(list(object({
+      name     = string
+      priority = number
+      action   = string
+      rules = list(object({
+        name             = string
+        source_addresses = optional(list(string))
+        source_ip_groups = optional(list(string))
+        target_fqdns     = optional(list(string))
+        fqdn_tags        = optional(list(string))
+        protocols = optional(list(object({
+          port = string
+          type = string
+        })))
+      }))
+    })))
+  }))
+  default = []
+}
+
 variable "dns_zones" {
   description = "List of DNS zones to create"
   type = list(object({
     name = string
   }))
   default = []
+}
+
+variable "acr_config_list" {
+  description = "Optional list of Azure Container Registries (ACR) to create. Each entry can also enable a Private Endpoint + Private DNS integration (Private Link)."
+  type = list(object({
+    # If null, a name is generated from scenario + run_id. Must be globally unique, 5-50 chars, alphanumeric, start with a letter.
+    name                          = optional(string, null)
+    sku                           = optional(string, "Premium")
+    admin_enabled                 = optional(bool, false)
+    public_network_access_enabled = optional(bool, true)
+
+    private_endpoint = optional(object({
+      # Subnet name in the scenario VNet where the Private Endpoint NIC will be created.
+      subnet_name = string
+      # Optionally override the private DNS zone name for ACR.
+      private_dns_zone_name = optional(string, "privatelink.azurecr.io")
+    }), null)
+
+    # Optional: grant AcrPull on this ACR to the AKS kubelet identity for the specified aks-cli roles.
+    # Example: ["nap"] to allow the nap cluster nodes to pull from this ACR.
+    acrpull_aks_cli_roles = optional(list(string), [])
+
+    # Optional: create ACR artifact cache rules (pull-through cache).
+    # Each rule maps a target repository inside ACR to a source repository in an upstream registry.
+    # Example (no auth): source_repository = "mcr.microsoft.com/hello-world", target_repository = "mcr/hello-world"
+    cache_rules = optional(list(object({
+      name                       = string
+      source_repository          = string
+      target_repository          = string
+      credential_set_resource_id = optional(string, null)
+    })), [])
+
+    # Backward-compatible alias (previously used to grant access to the cluster identity).
+    # If set, it is treated the same as acrpull_aks_cli_roles.
+    contributor_aks_cli_roles = optional(list(string), [])
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for acr in var.acr_config_list : (
+        try(acr.private_endpoint, null) == null || lower(try(acr.sku, "Premium")) == "premium"
+      )
+    ])
+    error_message = "ACR Private Link (private_endpoint) requires a Premium ACR SKU."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for acr in var.acr_config_list : [
+        for rule in try(acr.cache_rules, []) : (
+          length(rule.name) >= 5 && length(rule.name) <= 50 && can(regex("^[a-zA-Z0-9-]*$", rule.name))
+        )
+      ]
+    ]))
+    error_message = "Each ACR cache rule name must be 5-50 characters and match ^[a-zA-Z0-9-]*$."
+  }
+}
+
+variable "key_vault_config_list" {
+  description = "List of Key Vault configurations for AKS KMS encryption. Each configuration specifies a Key Vault and its encryption keys to be created."
+  type = list(object({
+    name = string # Key Vault name
+    keys = list(object({
+      key_name = string # Encryption key name
+    }))
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for config in var.key_vault_config_list : (
+        length(config.name) >= 3 &&
+        length(config.name) <= 20 &&
+        length(config.keys) >= 1
+      )
+    ])
+    error_message = "Each Key Vault config must have name 3-20 characters (total 24 after adding 4-char random suffix), and at least one key must be defined."
+  }
 }
 
 variable "aks_config_list" {
@@ -154,7 +332,8 @@ variable "aks_config_list" {
       mode      = string
       revisions = list(string)
     }))
-    sku_tier = string
+    sku_tier     = string
+    support_plan = optional(string, "KubernetesOfficial")
     default_node_pool = object({
       name                         = string
       subnet_name                  = optional(string)
@@ -219,6 +398,68 @@ variable "aks_config_list" {
     web_app_routing = optional(object({
       dns_zone_names = list(string)
     }), null)
+    kms_config = optional(object({
+      key_name       = string
+      key_vault_name = string
+      network_access = optional(string, "Public")
+    }), null)
+    # Disk Encryption Set configuration for OS disk encryption with Customer-Managed Keys
+    disk_encryption_set_name = optional(string, null) # Name of the Disk Encryption Set to use for OS disk encryption
+  }))
+  default = []
+}
+
+variable "vm_config_list" {
+  description = "Configuration for virtual machines"
+  type = list(object({
+    # Basic VM configuration
+    role           = string
+    name           = string
+    vm_size        = optional(string, "Standard_D4s_v3")
+    admin_username = optional(string, "azureuser")
+
+    # Network configuration - use NIC name from network module
+    nic_name = string
+
+    # AKS integration (optional)
+    aks_name = optional(string, null)
+
+    # OS disk configuration
+    os_disk = optional(object({
+      caching              = optional(string, "ReadWrite")
+      storage_account_type = optional(string, "Standard_LRS")
+      disk_size_gb         = optional(number, 64)
+    }), {})
+
+    # Image configuration
+    image = optional(object({
+      publisher = optional(string, "Canonical")
+      offer     = optional(string, "ubuntu-24_04-lts")
+      sku       = optional(string, "server")
+      version   = optional(string, "latest")
+    }), {})
+
+    # NSG configuration
+    nsg = optional(object({
+      enabled = optional(bool, false)
+      rules = optional(list(object({
+        name                       = string
+        priority                   = number
+        direction                  = optional(string, "Inbound")
+        access                     = optional(string, "Allow")
+        protocol                   = optional(string, "Tcp")
+        source_port_range          = optional(string, "*")
+        destination_port_range     = string
+        source_address_prefix      = optional(string, "*")
+        destination_address_prefix = optional(string, "*")
+      })), [])
+    }), {})
+
+    # Cloud-init template file name in templates/ folder
+    cloud_init_template = optional(string, "cloud-init.tpl")
+
+    # VM-specific tags (merged with global tags)
+    vm_tags = optional(map(string), {})
   }))
   default = []
 }
@@ -229,26 +470,30 @@ variable "aks_cli_config_list" {
     aks_name = string
     sku_tier = string
 
-    managed_identity_name         = optional(string, null)
-    subnet_name                   = optional(string, null)
-    kubernetes_version            = optional(string, null)
-    aks_custom_headers            = optional(list(string), [])
-    use_custom_configurations     = optional(bool, false)
-    use_aks_preview_cli_extension = optional(bool, true)
-    use_aks_preview_private_build = optional(bool, false)
+    managed_identity_name             = optional(string, null)
+    subnet_name                       = optional(string, null)
+    kubernetes_version                = optional(string, null)
+    aks_custom_headers                = optional(list(string), [])
+    use_custom_configurations         = optional(bool, false)
+    use_aks_preview_cli_extension     = optional(bool, true)
+    use_aks_preview_private_build     = optional(bool, false)
+    api_server_subnet_name            = optional(string, false)
+    enable_apiserver_vnet_integration = optional(bool, false)
 
     default_node_pool = optional(object({
-      name        = string
-      node_count  = number
-      vm_size     = string
-      vm_set_type = optional(string, "VirtualMachineScaleSets")
+      name         = string
+      node_count   = number
+      vm_size      = string
+      vm_set_type  = optional(string, "VirtualMachineScaleSets")
+      os_disk_type = optional(string, "Managed")
     }), null)
     extra_node_pool = optional(
       list(object({
-        name        = string
-        node_count  = number
-        vm_size     = string
-        vm_set_type = optional(string, "VirtualMachineScaleSets")
+        name         = string
+        node_count   = number
+        vm_size      = string
+        vm_set_type  = optional(string, "VirtualMachineScaleSets")
+        os_disk_type = optional(string, "Managed")
         optional_parameters = optional(list(object({
           name  = string
           value = string
@@ -258,8 +503,86 @@ variable "aks_cli_config_list" {
       name  = string
       value = string
     })), [])
+    kms_config = optional(object({
+      key_name       = string
+      key_vault_name = string
+      network_access = optional(string, "Public")
+    }), null)
     dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
+    # Disk Encryption Set configuration for OS disk encryption with Customer-Managed Keys
+    disk_encryption_set_name = optional(string, null) # Name of the Disk Encryption Set to use for OS disk encryption
   }))
   default = []
+}
+
+variable "arm_endpoint" {
+  description = "Custom Azure Resource Manager endpoint URL for the AzAPI provider"
+  type        = string
+  default     = "https://management.azure.com"
+}
+
+variable "azapi_config_list" {
+  description = "List of AKS cluster configurations to create via Azure REST API (AzAPI provider)"
+  type = list(object({
+    role        = string
+    aks_name    = string
+    dns_prefix  = string
+    api_version = optional(string, "2025-10-01")
+
+    sku = optional(object({
+      name = optional(string, "Base")
+      tier = optional(string, "Standard")
+    }), {})
+
+    identity_type = optional(string, "SystemAssigned")
+
+    kubernetes_version = optional(string, null)
+
+    network_profile = optional(object({
+      network_plugin      = optional(string, "azure")
+      network_plugin_mode = optional(string, "overlay")
+    }), {})
+
+    default_node_pool = object({
+      name    = optional(string, "systempool1")
+      count   = optional(number, 3)
+      vm_size = optional(string, "Standard_D2s_v5")
+      os_type = optional(string, "Linux")
+      mode    = optional(string, "System")
+    })
+
+    control_plane_scaling_profile = optional(object({
+      scaling_size = string
+    }), null)
+  }))
+  default = []
+}
+
+variable "disk_encryption_set_config_list" {
+  description = "List of Disk Encryption Set configurations for encrypting AKS OS/data disks with Customer-Managed Keys. Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys"
+  type = list(object({
+    name            = string                                              # Name of the Disk Encryption Set
+    key_vault_name  = string                                              # Name of the Key Vault containing the encryption key
+    key_name        = string                                              # Name of the encryption key in the Key Vault
+    encryption_type = optional(string, "EncryptionAtRestWithCustomerKey") # Type of encryption
+    # Supported values:
+    # - EncryptionAtRestWithCustomerKey (default): Disk is encrypted with customer-managed key
+    # - EncryptionAtRestWithPlatformAndCustomerKeys: Double encryption (platform + customer key)
+    # - ConfidentialVmEncryptedWithCustomerKey: For confidential VMs
+    auto_key_rotation_enabled = optional(bool, false) # Enable automatic key rotation
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for config in var.disk_encryption_set_config_list : (
+        length(config.name) >= 1 &&
+        length(config.name) <= 80 &&
+        length(config.key_vault_name) >= 1 &&
+        length(config.key_name) >= 1
+      )
+    ])
+    error_message = "Each Disk Encryption Set config must have name 1-80 characters, and key_vault_name and key_name must be specified."
+  }
 }
 

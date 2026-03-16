@@ -18,8 +18,11 @@ name: resource-consumer
 {{$loadType := DefaultParam .CL2_LOAD_TYPE "memory"}}
 
 {{$provider := DefaultParam .CL2_PROVIDER "aks"}}
+{{$registryEndpoint := DefaultParam .CL2_REGISTRY_ENDPOINT "akscritelescope.azurecr.io" }}
+{{$testImage := DefaultParam .CL2_TEST_IMAGE "e2e-test-images/resource-consumer:1.13" }}
 {{$osType := DefaultParam .CL2_OS_TYPE "linux"}}
 {{$scrapeKubelets := DefaultParam .CL2_SCRAPE_KUBELETS false}}
+{{$scrapeContainerd := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
 {{$hostNetwork := DefaultParam .CL2_HOST_NETWORK "true"}}
 
 namespace:
@@ -67,6 +70,13 @@ steps:
         action: start
   {{end}}
 
+  {{if $scrapeContainerd}}
+  - module:
+      path: /containerd-measurements.yaml
+      params:
+        action: start
+  {{end}}
+
   {{range $j := Loop $steps}}
   - name: Create deployment {{$j}}
     phases:
@@ -99,6 +109,8 @@ steps:
           CPURequest: {{$cpu}}m
           LoadType: {{$loadType}}
           Provider: {{$provider}}
+          RegistryEndpoint: {{$registryEndpoint}}
+          TestImage: {{$testImage}}
           OSType: {{$osType}}
           HostNetwork: {{$hostNetwork}}
 
@@ -137,6 +149,13 @@ steps:
   {{if $scrapeKubelets}}
   - module:
       path: /kubelet-measurement.yaml
+      params:
+        action: gather
+  {{end}}
+
+  {{if $scrapeContainerd}}
+  - module:
+      path: /containerd-measurements.yaml
       params:
         action: gather
   {{end}}

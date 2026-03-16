@@ -3,18 +3,21 @@ locals {
   nat_gateway_associations_map = var.network_config.nat_gateway_associations == null ? {} : { for nat in var.network_config.nat_gateway_associations : nat.nat_gateway_name => nat }
   vnet_name                    = var.network_config.vnet_name
   input_subnet_map             = { for subnet in var.network_config.subnet : subnet.name => subnet }
-  subnets_map = {
-    for subnet in azurerm_virtual_network.vnet.subnet :
-    split("/", subnet.id)[length(split("/", subnet.id)) - 1] => subnet
-  }
-  network_security_group_name = var.network_config.network_security_group_name
+  subnets_map                  = { for subnet in azurerm_virtual_network.vnet.subnet : subnet.name => subnet }
+  network_security_group_name  = var.network_config.network_security_group_name
   expanded_nic_association_map = flatten([
     for nic in var.network_config.nic_public_ip_associations : [
       for i in range(var.nic_count_override > 0 ? var.nic_count_override : nic.count) : {
         nic_name              = (var.nic_count_override > 0 ? var.nic_count_override : nic.count) > 1 ? "${nic.nic_name}-${i + 1}" : nic.nic_name
         subnet_name           = nic.subnet_name
         ip_configuration_name = nic.ip_configuration_name
-        public_ip_name        = (var.nic_count_override > 0 ? var.nic_count_override : nic.count) > 1 ? "${nic.public_ip_name}-${i + 1}" : nic.public_ip_name
+        public_ip_name = (
+          try(nic.public_ip_name, null) != null && try(nic.public_ip_name, "") != ""
+          ) ? (
+          (var.nic_count_override > 0 ? var.nic_count_override : nic.count) > 1
+          ? "${nic.public_ip_name}-${i + 1}"
+          : nic.public_ip_name
+        ) : null
       }
     ]
   ])
@@ -31,11 +34,17 @@ resource "azurerm_virtual_network" "vnet" {
 
   dynamic "subnet" {
     for_each = local.input_subnet_map
+
     content {
       name                                          = subnet.value.name
       address_prefixes                              = [subnet.value.address_prefix]
       service_endpoints                             = subnet.value.service_endpoints != null ? subnet.value.service_endpoints : []
       private_link_service_network_policies_enabled = subnet.value.pls_network_policies_enabled != null ? subnet.value.pls_network_policies_enabled : true
+
+      private_endpoint_network_policies = subnet.value.private_endpoint_network_policies_enabled == null ? null : (
+        subnet.value.private_endpoint_network_policies_enabled ? "Enabled" : "Disabled"
+      )
+
       dynamic "delegation" {
         for_each = subnet.value.delegations != null ? subnet.value.delegations : []
         content {
@@ -77,7 +86,7 @@ resource "azurerm_network_interface" "nic" {
     name                          = each.value.ip_configuration_name
     subnet_id                     = local.subnets_map[each.value.subnet_name].id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = each.value.public_ip_name != null ? var.public_ips[each.value.public_ip_name] : null
+    public_ip_address_id          = (each.value.public_ip_name != null && each.value.public_ip_name != "") ? var.public_ips[each.value.public_ip_name].id : null
   }
 }
 

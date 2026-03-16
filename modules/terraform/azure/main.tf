@@ -1,30 +1,48 @@
 locals {
-  region                   = lookup(var.json_input, "region", "East US")
-  run_id                   = lookup(var.json_input, "run_id", "123456")
-  aks_sku_tier             = lookup(var.json_input, "aks_sku_tier", null)
-  aks_kubernetes_version   = lookup(var.json_input, "aks_kubernetes_version", null)
-  aks_network_policy       = lookup(var.json_input, "aks_network_policy", null)
-  aks_network_dataplane    = lookup(var.json_input, "aks_network_dataplane", null)
-  aks_cli_system_node_pool = lookup(var.json_input, "aks_cli_system_node_pool", null)
-  aks_cli_user_node_pool   = lookup(var.json_input, "aks_cli_user_node_pool", null)
-  aks_custom_headers       = lookup(var.json_input, "aks_custom_headers", [])
-  k8s_machine_type         = lookup(var.json_input, "k8s_machine_type", null)
-  k8s_os_disk_type         = lookup(var.json_input, "k8s_os_disk_type", null)
+  region                            = lookup(var.json_input, "region", "East US")
+  run_id                            = lookup(var.json_input, "run_id", "123456")
+  aks_sku_tier                      = lookup(var.json_input, "aks_sku_tier", null)
+  aks_kubernetes_version            = lookup(var.json_input, "aks_kubernetes_version", null)
+  aks_network_policy                = lookup(var.json_input, "aks_network_policy", null)
+  aks_network_dataplane             = lookup(var.json_input, "aks_network_dataplane", null)
+  aks_cli_system_node_pool          = lookup(var.json_input, "aks_cli_system_node_pool", null)
+  aks_cli_user_node_pool            = lookup(var.json_input, "aks_cli_user_node_pool", null)
+  aks_custom_headers                = lookup(var.json_input, "aks_custom_headers", [])
+  k8s_machine_type                  = lookup(var.json_input, "k8s_machine_type", null)
+  k8s_os_disk_type                  = lookup(var.json_input, "k8s_os_disk_type", null)
+  aks_aad_enabled                   = lookup(var.json_input, "aks_aad_enabled", false)
+  enable_apiserver_vnet_integration = lookup(var.json_input, "enable_apiserver_vnet_integration", false)
+  public_key_path                   = lookup(var.json_input, "public_key_path", null)
+  ssh_public_key                    = local.public_key_path != null ? (fileexists(local.public_key_path) ? file(local.public_key_path) : null) : null
 
-  tags = {
-    "owner"             = var.owner
-    "scenario"          = "${var.scenario_type}-${var.scenario_name}"
-    "creation_time"     = timestamp()
-    "deletion_due_time" = timeadd(timestamp(), var.deletion_delay)
-    "run_id"            = local.run_id
-    "SkipAKSCluster"    = "1"
-  }
+  tags = merge(
+    var.tags,
+    {
+      "owner"             = var.owner
+      "scenario"          = "${var.scenario_type}-${var.scenario_name}"
+      "creation_time"     = timestamp()
+      "deletion_due_time" = timeadd(timestamp(), var.deletion_delay)
+      "run_id"            = local.run_id
+      "SkipAKSCluster"    = "1"
+    }
+  )
 
   network_config_map = { for network in var.network_config_list : network.role => network }
 
+  subnet_to_network_role = merge([
+    for network in var.network_config_list : {
+      for subnet in network.subnet : subnet.name => network.role
+    }
+  ]...)
+
+  route_table_config_map = { for rt in var.route_table_config_list : rt.name => rt }
+
   aks_cli_custom_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/aks_custom_config.json"
 
-  all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
+  all_subnets              = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
+  all_nics                 = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
+  all_key_vaults           = merge([for kv_name, kv in module.key_vault : { (kv_name) = kv.key_vaults }]...)
+  all_disk_encryption_sets = merge([for des_name, des in module.disk_encryption_set : { (des_name) = des.disk_encryption_set_id }]...)
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
       aks,
@@ -41,20 +59,40 @@ locals {
     for aks in var.aks_cli_config_list : merge(
       aks,
       {
-        sku_tier           = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
-        kubernetes_version = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
-        aks_custom_headers = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
-        default_node_pool  = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
-        extra_node_pool    = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
+        sku_tier                          = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
+        kubernetes_version                = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
+        aks_custom_headers                = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
+        default_node_pool                 = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
+        extra_node_pool                   = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
+        enable_apiserver_vnet_integration = local.enable_apiserver_vnet_integration
       }
     )
   ] : []
 
-  aks_cli_config_map = length(local.updated_aks_cli_config_list) == 0 ? { for aks in var.aks_cli_config_list : aks.role => aks } : { for aks in local.updated_aks_cli_config_list : aks.role => aks }
+  aks_cli_config_map = { for aks in local.updated_aks_cli_config_list : aks.role => aks }
+
+  azapi_config_map = { for c in var.azapi_config_list : c.aks_name => c }
+
+  key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
+
+  vm_config_map = { for vm in var.vm_config_list : vm.role => vm }
+
+  disk_encryption_set_config_map = { for des in var.disk_encryption_set_config_list : des.name => des }
 }
 
 provider "azurerm" {
-  features {}
+  features {
+    key_vault {
+      purge_soft_delete_on_destroy    = false
+      recover_soft_deleted_key_vaults = false
+    }
+  }
+}
+
+provider "azapi" {
+  endpoint = [{
+    resource_manager_endpoint = var.arm_endpoint
+  }]
 }
 
 module "public_ips" {
@@ -76,6 +114,75 @@ module "virtual_network" {
   tags                = local.tags
 }
 
+module "acr" {
+  source = "./acr"
+
+  providers = {
+    azurerm = azurerm
+    azapi   = azapi
+  }
+
+  acr_config_list        = var.acr_config_list
+  resource_group_name    = local.run_id
+  location               = local.region
+  tags                   = local.tags
+  scenario_name          = var.scenario_name
+  run_id                 = local.run_id
+  subnet_ids_by_name     = local.all_subnets
+  vnet_ids_by_role       = { for role in keys(local.network_config_map) : role => module.virtual_network[role].vnet_id }
+  subnet_to_network_role = local.subnet_to_network_role
+  aks_cli_roles          = keys(local.aks_cli_config_map)
+
+  depends_on = [module.virtual_network]
+}
+
+# =============================================================================
+# Azure Bastion (optional)
+#
+# If a network config includes a subnet named "AzureBastionSubnet", we deploy an
+# Azure Bastion Host into that VNet. Pipeline steps can then SSH/SCP to the
+# jumpbox through a Bastion tunnel over 443, without requiring inbound port 22
+# from the public internet.
+# =============================================================================
+
+locals {
+  bastion_network_roles = {
+    for role, network in local.network_config_map : role => network
+    if contains([for subnet in network.subnet : subnet.name], "AzureBastionSubnet")
+  }
+}
+
+resource "azurerm_public_ip" "bastion" {
+  for_each = local.bastion_network_roles
+
+  name                = "bastion-pip-${each.key}"
+  location            = local.region
+  resource_group_name = local.run_id
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = local.tags
+}
+
+resource "azurerm_bastion_host" "bastion" {
+  for_each = local.bastion_network_roles
+
+  name                = "bastion-${each.key}"
+  location            = local.region
+  resource_group_name = local.run_id
+  sku                 = "Standard"
+  tunneling_enabled   = true
+  tags                = local.tags
+
+  ip_configuration {
+    name                 = "ipconfig"
+    subnet_id            = module.virtual_network[each.key].subnets["AzureBastionSubnet"]
+    public_ip_address_id = azurerm_public_ip.bastion[each.key].id
+  }
+
+  depends_on = [module.virtual_network]
+}
+
+
 module "dns_zones" {
 
   source              = "./dns-zone"
@@ -84,22 +191,89 @@ module "dns_zones" {
   tags                = local.tags
 }
 
+module "firewall" {
+  source = "./firewall"
+
+  firewall_config_list = var.firewall_config_list
+  subnets_map          = local.all_subnets
+  public_ips_map       = module.public_ips.pip_ids
+  resource_group_name  = local.run_id
+  location             = local.region
+  tags                 = local.tags
+
+  depends_on = [module.virtual_network]
+}
+
+module "route_table" {
+  for_each = local.route_table_config_map
+
+  source = "./route-table"
+
+  route_table_config   = each.value
+  resource_group_name  = local.run_id
+  location             = local.region
+  subnets_ids          = local.all_subnets
+  firewall_private_ips = module.firewall.firewall_private_ips
+  public_ips           = module.public_ips.pip_ids
+  tags                 = local.tags
+
+  depends_on = [module.virtual_network, module.firewall]
+}
+
+module "key_vault" {
+  for_each = local.key_vault_config_map
+
+  source              = "./key-vault"
+  resource_group_name = local.run_id
+  location            = local.region
+  key_vault_config    = each.value
+  tags                = local.tags
+}
+
+module "disk_encryption_set" {
+  for_each = local.disk_encryption_set_config_map
+
+  source                     = "./disk-encryption-set"
+  resource_group_name        = local.run_id
+  location                   = local.region
+  disk_encryption_set_config = each.value
+  key_vaults                 = local.all_key_vaults
+  tags                       = local.tags
+
+  depends_on = [module.key_vault]
+}
+
 module "aks" {
   for_each = local.aks_config_map
 
-  source              = "./aks"
+  source               = "./aks"
+  resource_group_name  = local.run_id
+  location             = local.region
+  aks_config           = each.value
+  tags                 = local.tags
+  subnet_id            = try(local.all_subnets[each.value.subnet_name], null)
+  vnet_id              = try(module.virtual_network[each.value.role].vnet_id, null)
+  subnets              = try(local.all_subnets, null)
+  k8s_machine_type     = local.k8s_machine_type
+  k8s_os_disk_type     = local.k8s_os_disk_type
+  network_dataplane    = local.aks_network_dataplane
+  network_policy       = local.aks_network_policy
+  dns_zones            = try(module.dns_zones.dns_zone_ids, null)
+  aks_aad_enabled      = local.aks_aad_enabled
+  key_vaults           = local.all_key_vaults
+  disk_encryption_sets = local.all_disk_encryption_sets
+  depends_on           = [module.route_table, module.virtual_network, module.disk_encryption_set]
+}
+
+module "azapi" {
+  for_each = local.azapi_config_map
+
+  source              = "./azapi"
   resource_group_name = local.run_id
   location            = local.region
-  aks_config          = each.value
+  azapi_config        = each.value
   tags                = local.tags
-  subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
-  vnet_id             = try(module.virtual_network[each.value.role].vnet_id, null)
-  subnets             = try(local.all_subnets, null)
-  k8s_machine_type    = local.k8s_machine_type
-  k8s_os_disk_type    = local.k8s_os_disk_type
-  network_dataplane   = local.aks_network_dataplane
-  network_policy      = local.aks_network_policy
-  dns_zones           = try(module.dns_zones.dns_zone_ids, null)
+  depends_on          = [module.route_table, module.virtual_network, module.disk_encryption_set]
 }
 
 module "aks-cli" {
@@ -110,6 +284,39 @@ module "aks-cli" {
   location                   = local.region
   aks_cli_config             = each.value
   tags                       = local.tags
-  subnet_id                  = try(local.all_subnets[each.value.subnet_name], null)
+  subnets_map                = local.all_subnets
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
+  key_vaults                 = local.all_key_vaults
+  aks_aad_enabled            = local.aks_aad_enabled
+
+  enable_kubelet_identity = lookup(module.acr.acr_pull_enabled_by_aks_cli_role, each.key, false)
+
+  acr_pull_scopes_map = lookup(module.acr.acr_pull_scopes_map_by_aks_cli_role, each.key, {})
+
+  # For network isolated clusters (BYO ACR), pass the registry resource ID into az aks create.
+  bootstrap_artifact_source                = lookup(module.acr.bootstrap_container_registry_resource_id_by_aks_cli_role, each.key, null) != null ? "Cache" : null
+  bootstrap_container_registry_resource_id = lookup(module.acr.bootstrap_container_registry_resource_id_by_aks_cli_role, each.key, null)
+
+  disk_encryption_sets = local.all_disk_encryption_sets
+  depends_on = [
+    module.route_table,
+    module.virtual_network,
+    module.disk_encryption_set,
+    module.acr,
+  ]
+}
+
+module "virtual_machine" {
+  for_each = local.ssh_public_key != null ? local.vm_config_map : {}
+
+  source              = "./virtual-machine"
+  resource_group_name = local.run_id
+  location            = local.region
+  tags                = local.tags
+  ssh_public_key      = local.ssh_public_key
+  vm_config           = each.value
+  nics_map            = local.all_nics
+
+  # Ensure AKS cluster is created before VM tries to look it up for RBAC
+  depends_on = [module.aks, module.aks-cli, module.azapi]
 }

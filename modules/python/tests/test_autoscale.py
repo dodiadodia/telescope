@@ -11,7 +11,8 @@ from clusterloader2.autoscale.autoscale import (
     override_config_clusterloader2,
     execute_clusterloader2,
     collect_clusterloader2,
-    main
+    main,
+    CPU_SCALE_FACTOR,
 )
 from kubernetes.client.models import (
     V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Pod, V1PodSpec
@@ -67,8 +68,8 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         without_warmup_cpu_request = calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'false', '/mock/path', 'warmup_deployment.yaml')
 
         # Assert the CPU request calculation
-        self.assertEqual(with_warmup_cpu_request, 1800*0.95)  # 2000m - 100m (allocated) - 100m (warmup)
-        self.assertEqual(without_warmup_cpu_request, 1900*0.95) # 2000m - 100m (allocated)
+        self.assertEqual(with_warmup_cpu_request, int(1800 * CPU_SCALE_FACTOR))  # 2000m - 100m (allocated) - 100m (warmup)
+        self.assertEqual(without_warmup_cpu_request, int(1900 * CPU_SCALE_FACTOR)) # 2000m - 100m (allocated)
 
         # Assert cleanup is called
         mock_cleanup.assert_called_once_with('/mock/path', 'warmup_deployment.yaml')
@@ -116,8 +117,9 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         handle.write.assert_any_call('CL2_NODE_SELECTOR: "{autoscaler : true}"\n')
         handle.write.assert_any_call('CL2_OS_TYPE: linux\n')
 
-        mock_logger.info.assert_any_call("CPU per node: 2")
-        mock_logger.info.assert_any_call("Total number of nodes: 100, total number of pods: 1000")
+        mock_logger.info.assert_any_call(
+            "Total number of nodes: 100, total number of pods: 1000, cpu per node: 2"
+        )
         mock_logger.info.assert_any_call("CPU request for each pod: 1900m")
 
         # Test with warmup deployment true
@@ -156,13 +158,23 @@ class TestClusterLoaderFunctions(unittest.TestCase):
             cl2_config_dir="/mock/config",
             cl2_report_dir="/mock/report",
             kubeconfig="/mock/kubeconfig",
-            provider="aks"
+            provider="aks",
         )
 
         # Verify the command execution
         mock_run_cl2_command.assert_called_once_with(
-            "/mock/kubeconfig", "mock-image", "/mock/config", "/mock/report", "aks",
-            overrides=True)
+            "/mock/kubeconfig",
+            "mock-image",
+            "/mock/config",
+            "/mock/report",
+            "aks",
+            "config.yaml",
+            overrides=True,
+            enable_prometheus=False,
+            tear_down_prometheus=False,
+            scrape_kubelets=False,
+            scrape_ksm=False,
+        )
     def test_collect_clusterloader2_success(self):
         cl2_report_dir = os.path.join(
               os.path.dirname(__file__), "mock_data", "autoscale", "report"
@@ -179,7 +191,10 @@ class TestClusterLoaderFunctions(unittest.TestCase):
           cloud_info="mock-cloud",
           run_id="mock-run-id",
           run_url="http://mock-run-url",
-          result_file=result_file
+          result_file=result_file,
+          cl2_config_file="config.yaml",
+          pod_cpu_request=1900,
+          pod_memory_request="2Gi"
         )
 
         self.assertTrue(os.path.exists(result_file))
@@ -210,7 +225,10 @@ class TestClusterLoaderFunctions(unittest.TestCase):
               cloud_info="mock-cloud",
               run_id="mock-run-id",
               run_url="http://mock-run-url",
-              result_file="/mock/result/file"
+              result_file="/mock/result/file",
+              cl2_config_file="config.yaml",
+              pod_cpu_request=2000,
+              pod_memory_request="2Gi"
             )
 
         self.assertIn("No testsuites found in the report", str(context.exception))
@@ -218,29 +236,66 @@ class TestClusterLoaderFunctions(unittest.TestCase):
     @patch('clusterloader2.autoscale.autoscale.override_config_clusterloader2')
     def test_override_command(self, mock_override):
         test_args = [
-            'prog', 'override', '4', '3', '200', '10m', '5m', '2',
-            'nodepool=default', 'env=prod', 'override.yaml',
-            'warmup-deploy', 'config-dir'
+            'prog',
+            'override',
+            '4',
+            '3',
+            '200',
+            '10m',
+            '5m',
+            '2',
+            'nodepool=default',
+            'env=prod',
+            'override.yaml',
+            'warmup-deploy',
+            'config-dir',
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                4, 3, 200, '10m', '5m', 2,
-                'nodepool=default', 'env=prod',
-                'override.yaml', 'warmup-deploy', 'config-dir', 'linux', '', ''
+                4,
+                3,
+                200,
+                '10m',
+                '5m',
+                2,
+                'nodepool=default',
+                'env=prod',
+                'override.yaml',
+                'warmup-deploy',
+                'config-dir',
+                'linux',
+                '',
+                '',
+                pod_cpu_request=None,
+                pod_memory_request=None,
+                cl2_config_file='config.yaml',
+                enable_prometheus=False,
             )
 
     @patch('clusterloader2.autoscale.autoscale.execute_clusterloader2')
     def test_execute_command(self, mock_execute):
         test_args = [
-            'prog', 'execute', 'cl2-image', 'config-dir',
-            'report-dir', 'kubeconfig.yaml', 'aws'
+            'prog',
+            'execute',
+            'cl2-image',
+            'config-dir',
+            'report-dir',
+            'kubeconfig.yaml',
+            'aws',
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_execute.assert_called_once_with(
-                'cl2-image', 'config-dir', 'report-dir',
-                'kubeconfig.yaml', 'aws'
+                'cl2-image',
+                'config-dir',
+                'report-dir',
+                'kubeconfig.yaml',
+                'aws',
+                'config.yaml',
+                False,
+                False,
+                False,
             )
 
     @patch('clusterloader2.autoscale.autoscale.collect_clusterloader2')
@@ -253,7 +308,8 @@ class TestClusterLoaderFunctions(unittest.TestCase):
             main()
             mock_collect.assert_called_once_with(
                 4, 'on-demand', 3, 200, 'report-dir',
-                'aws-info', 'run-123', 'http://run.url', 'results.json'
+                'aws-info', 'run-123', 'http://run.url', 'results.json',
+                cl2_config_file='config.yaml', pod_cpu_request=None, pod_memory_request=None
             )
 
 if __name__ == '__main__':

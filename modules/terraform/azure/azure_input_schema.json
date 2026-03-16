@@ -19,6 +19,9 @@
     "aks_network_dataplane": {
       "type": "string"
     },
+    "aks_aad_enabled": {
+      "type": "boolean"
+    },
     "aks_cli_system_node_pool": {
       "type": "object"
     },
@@ -29,6 +32,12 @@
       "type": "string"
     },
     "k8s_os_disk_type": {
+      "type": "string"
+    },
+    "enable_apiserver_vnet_integration": {
+      "type": "boolean"
+    },
+    "public_key_path": {
       "type": "string"
     }
   },

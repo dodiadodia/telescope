@@ -9,8 +9,11 @@ variable "location" {
 }
 
 variable "public_ips" {
-  description = "Map of public IP names to IDs"
-  type        = map(string)
+  description = "Map of public IP names to their objects containing id and ip_address"
+  type = map(object({
+    id         = string
+    ip_address = string
+  }))
 }
 
 variable "accelerated_networking" {
@@ -25,10 +28,11 @@ variable "network_config" {
     vnet_name          = string
     vnet_address_space = string
     subnet = list(object({
-      name                         = string
-      address_prefix               = string
-      service_endpoints            = optional(list(string))
-      pls_network_policies_enabled = optional(bool)
+      name                                      = string
+      address_prefix                            = string
+      service_endpoints                         = optional(list(string))
+      pls_network_policies_enabled              = optional(bool)
+      private_endpoint_network_policies_enabled = optional(bool)
       delegations = optional(list(object({
         name                       = string
         service_delegation_name    = string
@@ -40,8 +44,9 @@ variable "network_config" {
       nic_name              = string
       subnet_name           = string
       ip_configuration_name = string
-      public_ip_name        = string
-      count                 = optional(number, 1)
+      # Optional: when omitted or null, the NIC will be created without a public IP.
+      public_ip_name = optional(string)
+      count          = optional(number, 1)
     }))
     nsr_rules = list(object({
       name                       = string

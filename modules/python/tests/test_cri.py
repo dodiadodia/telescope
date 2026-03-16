@@ -60,9 +60,13 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             scale_enabled=False,
             pod_startup_latency_threshold="15s",
             provider="aks",
+            registry_endpoint="akscritelescope.azurecr.io",
+            test_image="e2e-test-images/resource-consumer:1.13",
             os_type="linux",
             scrape_kubelets=True,
             host_network=True,
+            scrape_containerd=False,
+            containerd_scrape_interval="15s",
             override_file="/mock/override.yaml"
         )
 
@@ -86,6 +90,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         handle.write.assert_any_call("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         handle.write.assert_any_call("CL2_POD_STARTUP_LATENCY_THRESHOLD: 15s\n")
         handle.write.assert_any_call("CL2_PROVIDER: aks\n")
+        handle.write.assert_any_call("CL2_REGISTRY_ENDPOINT: akscritelescope.azurecr.io\n")
         handle.write.assert_any_call("CL2_OS_TYPE: linux\n")
         handle.write.assert_any_call("CL2_SCRAPE_KUBELETS: true\n")
         handle.write.assert_any_call("CL2_HOST_NETWORK: true\n")
@@ -114,9 +119,13 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             scale_enabled=False,
             pod_startup_latency_threshold="15s",
             provider="aks",
+            registry_endpoint="akscritelescope.azurecr.io",
+            test_image="e2e-test-images/resource-consumer:1.13",
             os_type="linux",
             scrape_kubelets=False,
             host_network=False,
+            scrape_containerd=False,
+            containerd_scrape_interval="15s",
             override_file="/mock/override.yaml"
         )
 
@@ -135,13 +144,14 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             cl2_report_dir="/mock/report",
             kubeconfig="/mock/kubeconfig",
             provider="aks",
-            scrape_kubelets=True
+            scrape_kubelets=True,
+            scrape_containerd=False
         )
 
         # Verify the command execution
         mock_run_cl2_command.assert_called_once_with(
             "/mock/kubeconfig", "mock-image", "/mock/config", "/mock/report", "aks",
-            overrides=True, enable_prometheus=True, tear_down_prometheus=False, scrape_kubelets=True
+            overrides=True, enable_prometheus=True, tear_down_prometheus=False, scrape_kubelets=True, scrape_containerd=False
         )
 
     @patch('clusterloader2.cri.cri.KubernetesClient')
@@ -228,15 +238,18 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--scale_enabled", "True", 
             "--pod_startup_latency_threshold", "10s",
             "--provider", "aws", 
+            "--registry_endpoint", "test registry endpoint", 
             "--os_type", "linux", 
             "--scrape_kubelets", "False", 
             "--host_network", "False",
+            "--scrape_containerd", "False",
+            "--containerd_scrape_interval", "20s",
             "--cl2_override_file", "/tmp/override.yaml"
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "linux", False, False, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "e2e-test-images/resource-consumer:1.13", "linux", False, False, "20s", False, "/tmp/override.yaml", None
             )
 
     @patch("clusterloader2.cri.cri.override_config_clusterloader2")
@@ -253,6 +266,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--scale_enabled", "True", 
             "--pod_startup_latency_threshold", "10s",
             "--provider", "aws", 
+            "--registry_endpoint", "test registry endpoint", 
             "--os_type", "linux", 
             "--scrape_kubelets", "False", 
             "--cl2_override_file", "/tmp/override.yaml"
@@ -260,7 +274,35 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "linux", False, True, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "e2e-test-images/resource-consumer:1.13", "linux", False, False, "15s", True, "/tmp/override.yaml", None
+            )
+
+    @patch("clusterloader2.cri.cri.override_config_clusterloader2")
+    def test_override_command_with_memory_request_override(self, mock_override):
+        test_args = [
+            "main.py", "override",
+            "--node_count", "1000",
+            "--node_per_step", "1000",
+            "--max_pods", "7",
+            "--repeats", "1",
+            "--operation_timeout", "60m",
+            "--load_type", "memory",
+            "--scale_enabled", "False",
+            "--pod_startup_latency_threshold", "10m",
+            "--provider", "aks",
+            "--registry_endpoint", "acrperftestaue.azurecr-test.io",
+            "--os_type", "linux",
+            "--scrape_kubelets", "False",
+            "--scrape_containerd", "True",
+            "--containerd_scrape_interval", "30s",
+            "--host_network", "True",
+            "--cl2_override_file", "/tmp/override.yaml",
+            "--memory_request_override", "1000Mi"
+        ]
+        with patch.object(sys, 'argv', test_args):
+            main()
+            mock_override.assert_called_once_with(
+                1000, 1000, 7, 1, "60m", "memory", False, "10m", "aks", "acrperftestaue.azurecr-test.io", "e2e-test-images/resource-consumer:1.13", "linux", False, True, "30s", True, "/tmp/override.yaml", "1000Mi"
             )
 
     @patch("clusterloader2.cri.cri.execute_clusterloader2")
@@ -272,13 +314,14 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--cl2_report_dir", "/reports",
             "--kubeconfig", "/home/user/.kube/config", 
             "--provider", "gcp", 
-            "--scrape_kubelets", "True"
+            "--scrape_kubelets", "True",
+            "--scrape_containerd", "False"
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_execute.assert_called_once_with(
                 "gcr.io/cl2:latest", "/configs", "/reports",
-                "/home/user/.kube/config", "gcp", True
+                "/home/user/.kube/config", "gcp", True, False
             )
 
     @patch("clusterloader2.cri.cri.collect_clusterloader2")
@@ -294,13 +337,14 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--run_id", "run-123", 
             "--run_url", "https://run.url", 
             "--result_file", "/tmp/results.json", 
-            "--scrape_kubelets", "False"
+            "--scrape_kubelets", "False", 
+            "--registry_info", "test registry info"
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_collect.assert_called_once_with(
                 3, 100, 5, "memory", "/reports", "gcp-zone", "run-123",
-                "https://run.url", "/tmp/results.json", False
+                "https://run.url", "/tmp/results.json", False, "test registry info"
             )
 
 if __name__ == '__main__':

@@ -5,6 +5,45 @@ locals {
   role_assignment_list = var.aks_config.role_assignment_list
   subnets              = var.subnets
   dns_zone_ids         = try([for zone_name in var.aks_config.web_app_routing.dns_zone_names : var.dns_zones[zone_name]], null)
+  key_management_service = (
+    var.aks_config.kms_config != null
+    ) ? {
+    key_vault_id = try(
+      var.key_vaults[var.aks_config.kms_config.key_vault_name].id,
+      error("Specified kms_key_vault_name '${var.aks_config.kms_config.key_vault_name}' does not exist in Key Vaults: ${join(", ", keys(var.key_vaults))}")
+    )
+    key_vault_key_id = try(
+      var.key_vaults[var.aks_config.kms_config.key_vault_name].keys[var.aks_config.kms_config.key_name].id,
+      error("Specified kms_key_name '${var.aks_config.kms_config.key_name}' does not exist in Key Vault '${var.aks_config.kms_config.key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_config.kms_config.key_vault_name].keys))}")
+    )
+    key_vault_key_resource_id = try(
+      var.key_vaults[var.aks_config.kms_config.key_vault_name].keys[var.aks_config.kms_config.key_name].resource_id,
+      error("Specified kms_key_name '${var.aks_config.kms_config.key_name}' does not exist in Key Vault '${var.aks_config.kms_config.key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_config.kms_config.key_vault_name].keys))}")
+    )
+  } : null
+  aks_kms_role_assignments = local.key_management_service != null ? {
+    "Key Vault Crypto Service Encryption User" = local.key_management_service.key_vault_key_resource_id
+    "Key Vault Crypto User"                    = local.key_management_service.key_vault_id
+  } : {}
+
+
+  # Disk Encryption Set for OS disk encryption with Customer-Managed Keys
+  disk_encryption_set_id = (
+    var.aks_config.disk_encryption_set_name != null ?
+    try(
+      var.disk_encryption_sets[var.aks_config.disk_encryption_set_name],
+      error("Specified disk_encryption_set_name '${var.aks_config.disk_encryption_set_name}' does not exist in Disk Encryption Sets: ${join(", ", keys(var.disk_encryption_sets))}")
+    ) : null
+  )
+}
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_user_assigned_identity" "aks_identity" {
+  count               = local.key_management_service != null ? 1 : 0
+  location            = var.location
+  name                = "${local.name}-identity"
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
@@ -18,7 +57,17 @@ resource "azurerm_kubernetes_cluster" "aks" {
       "role" = local.role
     },
   )
-  sku_tier = var.aks_config.sku_tier
+  sku_tier     = var.aks_config.sku_tier
+  support_plan = var.aks_config.support_plan
+
+  # Disk Encryption Set for OS disk encryption with Customer-Managed Keys
+  disk_encryption_set_id = local.disk_encryption_set_id
+
+  # Wait for KMS role assignment to propagate
+  depends_on = [
+    azurerm_role_assignment.aks_identity_kms_roles
+  ]
+
   default_node_pool {
     name                         = var.aks_config.default_node_pool.name
     node_count                   = var.aks_config.default_node_pool.node_count
@@ -44,7 +93,16 @@ resource "azurerm_kubernetes_cluster" "aks" {
     dns_service_ip      = var.aks_config.network_profile.dns_service_ip
   }
   identity {
-    type = "SystemAssigned"
+    type         = local.key_management_service != null ? "UserAssigned" : "SystemAssigned"
+    identity_ids = local.key_management_service != null ? [azurerm_user_assigned_identity.aks_identity[0].id] : []
+  }
+
+  dynamic "key_management_service" {
+    for_each = local.key_management_service == null ? [] : [local.key_management_service]
+    content {
+      key_vault_key_id         = key_management_service.value.key_vault_key_id
+      key_vault_network_access = var.aks_config.kms_config.network_access
+    }
   }
 
   dynamic "service_mesh_profile" {
@@ -82,6 +140,15 @@ resource "azurerm_kubernetes_cluster" "aks" {
   workload_identity_enabled = var.aks_config.workload_identity_enabled
   kubernetes_version        = var.aks_config.kubernetes_version
   edge_zone                 = var.aks_config.edge_zone
+
+  dynamic "azure_active_directory_role_based_access_control" {
+    for_each = var.aks_aad_enabled == true ? [1] : []
+    content {
+      tenant_id              = data.azurerm_client_config.current.tenant_id
+      admin_group_object_ids = [data.azurerm_client_config.current.object_id]
+      azure_rbac_enabled     = true
+    }
+  }
 
   dynamic "web_app_routing" {
     for_each = var.aks_config.web_app_routing != null && local.dns_zone_ids != null ? [var.aks_config.web_app_routing] : []
@@ -128,10 +195,36 @@ resource "azurerm_role_assignment" "aks_on_subnet" {
 
   role_definition_name = each.key
   scope                = var.vnet_id
-  principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
+  principal_id         = local.key_management_service != null ? azurerm_user_assigned_identity.aks_identity[0].principal_id : azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }
 
 resource "local_file" "save_kube_config" {
   filename = "/tmp/${azurerm_kubernetes_cluster.aks.fqdn}"
   content  = azurerm_kubernetes_cluster.aks.kube_config_raw
+}
+
+# Grant AKS identity KMS-related Key Vault roles
+resource "azurerm_role_assignment" "aks_identity_kms_roles" {
+  for_each             = local.aks_kms_role_assignments
+  scope                = each.value
+  role_definition_name = each.key
+  principal_id         = azurerm_user_assigned_identity.aks_identity[0].principal_id
+}
+
+# Grant Reader access to Disk Encryption Set for kubelet identity
+resource "azurerm_role_assignment" "des_reader_kubelet" {
+  count = var.aks_config.disk_encryption_set_name != null ? 1 : 0
+
+  scope                = local.disk_encryption_set_id
+  role_definition_name = "Reader"
+  principal_id         = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
+}
+
+# Grant Reader access to Disk Encryption Set for cluster identity
+resource "azurerm_role_assignment" "des_reader_cluster" {
+  count = var.aks_config.disk_encryption_set_name != null ? 1 : 0
+
+  scope                = local.disk_encryption_set_id
+  role_definition_name = "Reader"
+  principal_id         = local.key_management_service != null ? azurerm_user_assigned_identity.aks_identity[0].principal_id : azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }

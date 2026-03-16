@@ -16,10 +16,10 @@ variable "tags" {
   }
 }
 
-variable "subnet_id" {
-  description = "Value of the subnet id"
-  type        = string
-  default     = null
+variable "subnets_map" {
+  description = "Map of subnet names to subnet objects"
+  type        = map(any)
+  default     = {}
 }
 
 variable "aks_cli_custom_config_path" {
@@ -28,40 +28,94 @@ variable "aks_cli_custom_config_path" {
   default     = null
 }
 
+variable "key_vaults" {
+  description = "Map of Key Vault configurations with keys"
+  type        = map(any)
+  default     = {}
+}
+
+variable "disk_encryption_sets" {
+  description = "Map of Disk Encryption Set names to their IDs for OS/data disk encryption. Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys"
+  type        = map(string)
+  default     = {}
+}
+
+
+variable "aks_aad_enabled" {
+  description = "Indicates whether Azure Active Directory integration is enabled for AKS"
+  type        = bool
+  default     = false
+}
+
+variable "acr_pull_scopes_map" {
+  description = "Map of stable keys to Azure resource IDs (scopes) to grant the AKS kubelet identity AcrPull access to. Prefer this over acr_pull_scopes to keep for_each keys plan-stable."
+  type        = map(string)
+  default     = {}
+}
+
+variable "enable_kubelet_identity" {
+  description = "Whether to create and assign a user-assigned kubelet identity (and grant it ACR pull access when acr_pull_scopes are provided). Set false to disable kubelet identity entirely."
+  type        = bool
+  default     = false
+}
+
+variable "bootstrap_artifact_source" {
+  description = "Optional value for --bootstrap-artifact-source (for example, Cache or Direct). If null, the flag is omitted."
+  type        = string
+  default     = null
+}
+
+variable "bootstrap_container_registry_resource_id" {
+  description = "Optional ACR resource ID to pass to --bootstrap-container-registry-resource-id. If null, the flag is omitted."
+  type        = string
+  default     = null
+}
+
 variable "aks_cli_config" {
   type = object({
-    role                          = string
-    aks_name                      = string
-    sku_tier                      = string
-    subnet_name                   = optional(string, null)
-    managed_identity_name         = optional(string, null)
-    kubernetes_version            = optional(string, null)
-    aks_custom_headers            = optional(list(string), [])
-    use_custom_configurations     = optional(bool, false)
-    use_aks_preview_cli_extension = optional(bool, true)
-    use_aks_preview_private_build = optional(bool, false)
+    role                              = string
+    aks_name                          = string
+    sku_tier                          = string
+    subnet_name                       = optional(string, null)
+    managed_identity_name             = optional(string, null)
+    kubernetes_version                = optional(string, null)
+    aks_custom_headers                = optional(list(string), [])
+    use_custom_configurations         = optional(bool, false)
+    use_aks_preview_cli_extension     = optional(bool, true)
+    use_aks_preview_private_build     = optional(bool, false)
+    api_server_subnet_name            = optional(string, false)
+    enable_apiserver_vnet_integration = optional(bool, false)
     default_node_pool = optional(object({
-      name        = string
-      node_count  = number
-      vm_size     = string
-      vm_set_type = optional(string, "VirtualMachineScaleSets")
+      name         = string
+      node_count   = number
+      vm_size      = string
+      vm_set_type  = optional(string, "VirtualMachineScaleSets")
+      os_disk_type = optional(string, "Managed")
     }), null)
     extra_node_pool = optional(
       list(object({
-        name        = string
-        node_count  = number
-        vm_size     = string
-        vm_set_type = optional(string, "VirtualMachineScaleSets")
+        name         = string
+        node_count   = number
+        vm_size      = string
+        vm_set_type  = optional(string, "VirtualMachineScaleSets")
+        os_disk_type = optional(string, "Managed")
         optional_parameters = optional(list(object({ # Refer to https://learn.microsoft.com/en-us/cli/azure/aks/nodepool?view=azure-cli-latest#az-aks-nodepool-add(aks-preview) for available parameters
           name  = string
           value = string
         })), [])
     })), [])
-    optional_parameters = optional(list(object({  # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
+    optional_parameters = optional(list(object({ # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
       name  = string
       value = string
     })), [])
+    kms_config = optional(object({
+      key_name       = string
+      key_vault_name = string
+      network_access = optional(string, "Public")
+    }), null)
     dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
+    # Disk Encryption Set configuration for OS disk encryption with Customer-Managed Keys
+    disk_encryption_set_name = optional(string, null) # Name of the Disk Encryption Set to use for OS disk encryption
   })
 }
 
