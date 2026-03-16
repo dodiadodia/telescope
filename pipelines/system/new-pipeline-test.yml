@@ -16,7 +16,15 @@ stages:
           topology: k8s-crud-gpu
           engine: crud
           matrix:
-            node_pool_crud_standard: {}
+            node_pool_crud_standard:
+              VM_SIZE: Standard_D2s_v3
+              CREATE_NODE_COUNT: 1
+              SCALE_NODE_COUNT: 3
+              SCALE_STEP_SIZE: 1
+              POOL_NAME: testpool
+              STEP_TIME_OUT: 600
+              GPU_NODE_POOL: false
+              STEP_WAIT_TIME: 30
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
