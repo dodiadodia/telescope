@@ -17,9 +17,9 @@ stages:
           engine: crud
           matrix:
             node_pool_crud_standard:
-              VM_SIZE: Standard_NC6_Promo
+              VM_SIZE: Standard_NC24ads_A100_v4
               CREATE_NODE_COUNT: 1
-              SCALE_NODE_COUNT: 3
+              SCALE_NODE_COUNT: 2
               SCALE_STEP_SIZE: 1
               POOL_NAME: testpool
               STEP_TIME_OUT: 600
