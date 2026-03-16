@@ -17,7 +17,7 @@ stages:
           engine: crud
           matrix:
             node_pool_crud_standard:
-              VM_SIZE: Standard_NC6s_v3
+              VM_SIZE: Standard_NC6_Promo
               CREATE_NODE_COUNT: 1
               SCALE_NODE_COUNT: 3
               SCALE_STEP_SIZE: 1
