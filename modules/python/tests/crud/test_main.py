@@ -180,6 +180,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             scale_step_size=2,
             gpu_node_pool=False,
         )
+        mock_logger.error.assert_called_with("Operation 'scale' failed")
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_handle_node_pool_operation_delete(self, mock_azure_crud):
