@@ -152,12 +152,10 @@ def handle_workload_operations(node_pool_crud, args):
     result = None
 
     try:
-        if command == "create_pod":
+        if command == "deployment":
             # Prepare deploy arguments
             deploy_kwargs = {
                 "node_pool_name": args.node_pool_name,
-                "deployment_name": args.deployment_name,
-                "namespace": args.namespace,
                 "replicas": args.replicas,
                 "manifest_dir": args.manifest_dir,
                 "number_of_deployments": args.number_of_deployments
