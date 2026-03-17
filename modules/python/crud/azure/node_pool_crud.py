@@ -333,10 +333,10 @@ class NodePoolCRUD:
                         }
                     )
 
-                    # Apply the processed template
-                    k8s_client.apply_manifest_from_file(
-                        manifest_dict=yaml.safe_load_all(deployment_template)
-                    )
+                    # Apply each document in the rendered multi-doc template
+                    for doc in yaml.safe_load_all(deployment_template):
+                        if doc:
+                            k8s_client.apply_manifest_from_file(manifest_dict=doc)
 
                     logger.info(f"Applied manifest for deployment {deployment_name}")
 
