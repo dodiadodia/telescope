@@ -381,10 +381,8 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         """Test handle_workload_operations for successful pod creation"""
         # Setup
         mock_args = mock.MagicMock()
-        mock_args.command = "create_pod"
+        mock_args.command = "deployment"
         mock_args.node_pool_name = "test-nodepool"
-        mock_args.deployment_name = "test-deployment"
-        mock_args.namespace = "default"
         mock_args.replicas = 5
         mock_args.manifest_dir = "/path/to/manifests"
         mock_args.number_of_deployments = 3
@@ -399,8 +397,6 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         self.assertEqual(result, 0)  # 0 means success
         mock_azure_crud.create_deployment.assert_called_once_with(
             node_pool_name="test-nodepool",
-            deployment_name="test-deployment",
-            namespace="default",
             replicas=5,
             manifest_dir="/path/to/manifests",
             number_of_deployments=3
@@ -411,10 +407,8 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         """Test handle_workload_operations when operation fails"""
         # Setup
         mock_args = mock.MagicMock()
-        mock_args.command = "create_pod"
+        mock_args.command = "deployment"
         mock_args.node_pool_name = "test-nodepool"
-        mock_args.deployment_name = "test-deployment"
-        mock_args.namespace = "default"
         mock_args.replicas = 5
         mock_args.manifest_dir = "/path/to/manifests"
         mock_args.number_of_deployments = 3
@@ -434,10 +428,8 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         """Test handle_workload_operations with exception during operation"""
         # Setup
         mock_args = mock.MagicMock()
-        mock_args.command = "create_pod"
+        mock_args.command = "deployment"
         mock_args.node_pool_name = "test-nodepool"
-        mock_args.deployment_name = "test-deployment"
-        mock_args.namespace = "default"
         mock_args.replicas = 5
         mock_args.manifest_dir = "/path/to/manifests"
         mock_args.number_of_deployments = 3
@@ -451,7 +443,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Verify
         self.assertEqual(result, 1)  # 1 means error
         mock_logger.error.assert_called_with(
-            "Error during 'create_pod' operation: Test error"
+            "Error during 'deployment' operation: Test error"
         )
 
     @mock.patch("crud.main.logger")
@@ -466,10 +458,8 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup - simulate a partial success scenario where create_deployment
         # returns False (e.g., 2 out of 3 deployments succeeded)
         mock_args = mock.MagicMock()
-        mock_args.command = "create_pod"
+        mock_args.command = "deployment"
         mock_args.node_pool_name = "test-nodepool"
-        mock_args.deployment_name = "test-deployment"
-        mock_args.namespace = "default"
         mock_args.replicas = 5
         mock_args.manifest_dir = "/path/to/manifests"
         mock_args.number_of_deployments = 3  # Requesting 3 deployments
@@ -485,14 +475,12 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         self.assertEqual(result, 1)  # 1 means failure (partial success is still failure)
         mock_azure_crud.create_deployment.assert_called_once_with(
             node_pool_name="test-nodepool",
-            deployment_name="test-deployment",
-            namespace="default",
             replicas=5,
             manifest_dir="/path/to/manifests",
             number_of_deployments=3
         )
         # Verify the error was logged for the failed operation
-        mock_logger.error.assert_called_with("Operation 'create_pod' failed")
+        mock_logger.error.assert_called_with("Operation 'deployment' failed")
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_handle_workload_operations_multiple_deployments_success(self, mock_azure_crud):
@@ -504,10 +492,8 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         """
         # Setup - configure for multiple deployments
         mock_args = mock.MagicMock()
-        mock_args.command = "create_pod"
+        mock_args.command = "deployment"
         mock_args.node_pool_name = "test-nodepool"
-        mock_args.deployment_name = "test-deployment"
-        mock_args.namespace = "default"
         mock_args.replicas = 10
         mock_args.manifest_dir = "/path/to/manifests"
         mock_args.number_of_deployments = 5  # Multiple deployments
@@ -522,8 +508,6 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         self.assertEqual(result, 0)  # 0 means success
         mock_azure_crud.create_deployment.assert_called_once_with(
             node_pool_name="test-nodepool",
-            deployment_name="test-deployment",
-            namespace="default",
             replicas=10,
             manifest_dir="/path/to/manifests",
             number_of_deployments=5
