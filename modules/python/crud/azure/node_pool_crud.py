@@ -359,7 +359,7 @@ class NodePoolCRUD:
                             operation_timeout_in_minutes=5,
                             namespace="default",
                             pod_count=replicas,
-                            label_selector=f"app=nginx-container"
+                            label_selector="app=nginx-container"
                         )
 
                         logger.info(f"Successfully created and verified deployment {deployment_index}")
