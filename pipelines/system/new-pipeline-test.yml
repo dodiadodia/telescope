@@ -13,7 +13,7 @@ stages:
           cloud: azure
           regions:
             - eastus2
-          topology: create-delete-k8s-python
+          topology: k8s-crud-gpu
           engine: crud
           matrix:
             node_pool_crud_standard:
@@ -25,6 +25,10 @@ stages:
               STEP_TIME_OUT: 600
               GPU_NODE_POOL: ""
               STEP_WAIT_TIME: 30
+              DEPLOYMENT_NAME: testdeployment
+              NUMBER_OF_DEPLOYMENTS: 1
+              REPLICAS: 10
+              MANIFEST_DIR: $(Pipeline.Workspace)/s/modules/python/crud/workload_templates
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
