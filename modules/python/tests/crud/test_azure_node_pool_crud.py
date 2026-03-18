@@ -328,6 +328,8 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         # Setup
         mock_k8s_client = mock.MagicMock()
         self.mock_aks_client.k8s_client = mock_k8s_client
+        # Must return a real string - yaml.safe_load_all(MagicMock()) causes an infinite loop
+        mock_k8s_client.create_template.return_value = "apiVersion: apps/v1\nkind: Deployment\n"
         mock_k8s_client.wait_for_condition.return_value = True
 
         # Execute
@@ -341,6 +343,8 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         # Setup
         mock_k8s_client = mock.MagicMock()
         self.mock_aks_client.k8s_client = mock_k8s_client
+        # Must return a real string - yaml.safe_load_all(MagicMock()) causes an infinite loop
+        mock_k8s_client.create_template.return_value = "apiVersion: apps/v1\nkind: Deployment\n"
         mock_k8s_client.wait_for_condition.return_value = False
 
         # Execute
@@ -365,6 +369,9 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         # Setup
         mock_k8s_client = mock.MagicMock()
         self.mock_aks_client.k8s_client = mock_k8s_client
+
+        # Must return a real string - yaml.safe_load_all(MagicMock()) causes an infinite loop
+        mock_k8s_client.create_template.return_value = "apiVersion: apps/v1\nkind: Deployment\n"
 
         # Simulate: deployment 1 succeeds, deployment 2 fails, deployment 3 succeeds
         # wait_for_condition returns True/False for each deployment
