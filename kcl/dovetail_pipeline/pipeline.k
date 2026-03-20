@@ -3,6 +3,7 @@ import azure_pipelines.ap.jobs.job
 import lib.const
 import lib.steps.azure
 import lib.steps.common
+import lib.steps.k8s.runkperf
 import lib.util
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
@@ -32,10 +33,10 @@ requestBody = util.escapeStr("""
         {
           "name": "systempool",
           "mode": "System",
-          "count": 30,
-          "vmSize": "Standard_D8S_v4",
+          "count": 3,
+          "vmSize": "Standard_D2_v4",
           "osType": "Linux",
-          "maxPods": 250
+          "maxPods": 50
         }
       ],
     "networkProfile": {
@@ -63,7 +64,7 @@ az rest \\
 """
 
 output = ap.Pipeline {
-    name = "Dovetail Pipeline"
+    name = "Dovetail Benchmark"
 
     trigger =  ["v2"]
     pool = const.DEFAULT_POOL
@@ -74,6 +75,12 @@ output = ap.Pipeline {
             displayName = "Run ID (leave empty to auto-generate)"
             type = "string"
             default = "default"
+        }
+        ap.Parameter {
+            name = "skip_cleanup"
+            displayName = "Skip resource cleanup"
+            type = "boolean"
+            default = "false"
         }
     ]
 
@@ -125,6 +132,15 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
+                runkperf.InstallRunkperf("ghcr.io/liyu-ma/kperf:hyperscale-etcd"),
+                runkperf.RunKperfDataIngest(
+                    namespace="kperf-configmap-data",
+                    qps=400,
+                    burst=400,
+                    name="my-configmaps-500m",
+                    total=5000,
+                    size=100000,
+                    groupSize=50),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,

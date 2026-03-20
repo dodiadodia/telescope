@@ -18,5 +18,5 @@ az group delete --name "${name}" --subscription "${subscription}" --yes
         serviceConnection,
         "Delete resource group ${name} (${subscription})",
         script,
-        condition = "always()")
+        condition = "and(always(), ne('\${{ parameters.skip_cleanup }}', 'true'))")
 }

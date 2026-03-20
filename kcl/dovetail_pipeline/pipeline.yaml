@@ -1,4 +1,4 @@
-name: Dovetail Pipeline
+name: Dovetail Benchmark
 pool: AKS-Telescope-Ubuntu-EastUS2
 trigger:
 - v2
@@ -7,6 +7,10 @@ parameters:
   displayName: Run ID (leave empty to auto-generate)
   type: string
   default: default
+- name: skip_cleanup
+  displayName: Skip resource cleanup
+  type: boolean
+  default: 'false'
 jobs:
 - job: dovetail
   displayName: Dovetail
@@ -86,10 +90,10 @@ jobs:
                 {
                   \"name\": \"systempool\",
                   \"mode\": \"System\",
-                  \"count\": 30,
-                  \"vmSize\": \"Standard_D8S_v4\",
+                  \"count\": 3,
+                  \"vmSize\": \"Standard_D2_v4\",
                   \"osType\": \"Linux\",
-                  \"maxPods\": 250
+                  \"maxPods\": 50
                 }
               ],
             \"networkProfile\": {
@@ -186,6 +190,34 @@ jobs:
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
     displayName: Get credentials for dovetail-testing
+  - script: |2
+
+      set -euo pipefail
+      set -x
+
+      temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+      docker pull ghcr.io/liyu-ma/kperf:hyperscale-etcd
+      docker run --rm -v $temp_dir:/install-dir \
+        ghcr.io/liyu-ma/kperf:hyperscale-etcd bash -c "set -x; install /kperf /runkperf /install-dir"
+
+      sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
+      rm -rf $temp_dir
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd
+    displayName: Install runkperf binary
+  - script: |2
+
+      set -euo pipefail
+      set -x
+
+      runkperf data configmap \
+        --namespace kperf-configmap-data \
+        add my-configmaps-500m \
+        --qps 400 \
+        --burst 400 \
+        --total 5000 \
+        --size 100000 \
+        --group-size 50
+    displayName: Run kperf data configmap ingest
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -195,5 +227,5 @@ jobs:
         set -exo pipefail
 
         az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-    condition: always()
+    condition: and(always(), ne('${{ parameters.skip_cleanup }}', 'true'))
     displayName: Delete resource group $(RUN_ID) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
