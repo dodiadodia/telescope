@@ -51,3 +51,7 @@ steps:
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/config
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
     displayName: "Run Benchmark"
+  - script: |
+      sudo chown -R dodia:dodia $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results || true
+      sudo chmod -R u+rwX $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results || true
+    displayName: "Fix benchmark result permissions"
