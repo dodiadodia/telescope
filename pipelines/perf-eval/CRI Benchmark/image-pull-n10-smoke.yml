@@ -35,7 +35,7 @@ stages:
           load_type: memory
           scrape_kubelets: False
           scrape_containerd: True
-          containerd_scrape_interval: 5s
+          containerd_scrape_interval: 15s
           pod_startup_latency_threshold: 30s
 
       max_parallel: 1
