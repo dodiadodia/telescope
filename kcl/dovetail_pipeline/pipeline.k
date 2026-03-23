@@ -12,6 +12,13 @@ LOCATION = "westus2"
 CLUSTER = "dovetail-testing"
 NODE_POOL = "workerpool"
 
+# Condition: true when user provides an existing cluster (skip create/delete)
+USE_EXISTING_CLUSTER = "ne('\${{ parameters.existing_cluster_name }}', '')"
+
+# Resolve cluster info: use existing if provided, otherwise use defaults
+EFFECTIVE_CLUSTER = "\${{ coalesce(parameters.existing_cluster_name, '${CLUSTER}') }}"
+EFFECTIVE_RESOURCE_GROUP = "\${{ coalesce(parameters.existing_cluster_resource_group, '${RESOURCE_GROUP}') }}"
+
 requestBody = util.escapeStr("""
 {
     "location": "${LOCATION}",
@@ -82,13 +89,26 @@ output = ap.Pipeline {
             type = "boolean"
             default = "false"
         }
+        ap.Parameter {
+            name = "existing_cluster_resource_group"
+            displayName = "Existing cluster resource group (leave empty to create new)"
+            type = "string"
+            default = ""
+        }
+        ap.Parameter {
+            name = "existing_cluster_name"
+            displayName = "Existing cluster name (leave empty to create new)"
+            type = "string"
+            default = ""
+        }
     ]
 
     jobs = [
         job.Job {
-            job = "dovetail"
-            displayName = "Dovetail"
+            job = "setup"
+            displayName = "Cluster Setup"
             timeoutInMinutes = 1440
+            condition = "not(${USE_EXISTING_CLUSTER})"
 
             steps = [
                 common.SetRunId(),
@@ -127,10 +147,27 @@ output = ap.Pipeline {
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
                     NODE_POOL),
+            ]
+        }
+        job.Job {
+            job = "benchmark"
+            displayName = "Benchmark"
+            timeoutInMinutes = 1440
+            dependsOn = "setup"
+            condition = "or(succeeded(), ${USE_EXISTING_CLUSTER})"
+
+            steps = [
+                common.SetRunId(),
+                common.InstallPythonDependencies(),
+                azure.Login(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    SUBSCRIPTION_ID,
+                    LOCATION
+                ),
                 azure.GetCredentials(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
+                    EFFECTIVE_CLUSTER,
+                    EFFECTIVE_RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
                 runkperf.InstallRunkperf("ghcr.io/liyu-ma/kperf:hyperscale-etcd"),
                 runkperf.RunKperfDataIngest(
@@ -141,6 +178,22 @@ output = ap.Pipeline {
                     total=5000,
                     size=100000,
                     groupSize=50),
+            ]
+        }
+        job.Job {
+            job = "cleanup"
+            displayName = "Cleanup"
+            timeoutInMinutes = 60
+            dependsOn = "benchmark"
+            condition = "and(always(), not(${USE_EXISTING_CLUSTER}), ne('\${{ parameters.skip_cleanup }}', 'true'))"
+
+            steps = [
+                common.SetRunId(),
+                azure.Login(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    SUBSCRIPTION_ID,
+                    LOCATION
+                ),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,
