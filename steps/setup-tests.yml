@@ -57,8 +57,8 @@ steps:
       set -e
       echo "Install Python dependencies"
       # Constrain pip to versions below 24 due to compatibility issues with some packages and breaking changes introduced in pip 24.
-      pip3 install --upgrade "pip<24"
-      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      python3 -m pip install --upgrade "pip<24" --break-system-packages
+      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt  --break-system-packages
 
       echo "Install Ubuntu packages"
       # Recover from interrupted or broken package installations. The '|| true' ensures the script continues even if dpkg returns a non-zero exit code.
