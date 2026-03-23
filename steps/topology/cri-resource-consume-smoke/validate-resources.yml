@@ -14,4 +14,4 @@ steps:
 
   - template: /steps/engine/clusterloader2/large-cluster/validate.yml
     parameters:
-      desired_nodes: 4
+      desired_nodes: 6
