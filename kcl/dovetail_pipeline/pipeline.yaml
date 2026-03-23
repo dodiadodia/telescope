@@ -12,17 +12,17 @@ parameters:
   type: boolean
   default: 'false'
 - name: existing_cluster_resource_group
-  displayName: Existing cluster resource group (leave empty to create new)
+  displayName: Existing cluster resource group (leave as none to create new)
   type: string
-  default: ''
+  default: none
 - name: existing_cluster_name
-  displayName: Existing cluster name (leave empty to create new)
+  displayName: Existing cluster name (leave as none to create new)
   type: string
-  default: ''
+  default: none
 jobs:
 - job: setup
   displayName: Cluster Setup
-  condition: not(ne('${{ parameters.existing_cluster_name }}', ''))
+  condition: not(ne('${{ parameters.existing_cluster_name }}', 'none'))
   timeoutInMinutes: 1440
   steps:
   - bash: |2
@@ -188,7 +188,7 @@ jobs:
 - job: benchmark
   displayName: Benchmark
   dependsOn: setup
-  condition: or(succeeded(), ne('${{ parameters.existing_cluster_name }}', ''))
+  condition: or(succeeded(), ne('${{ parameters.existing_cluster_name }}', 'none'))
   timeoutInMinutes: 1440
   steps:
   - bash: |2
@@ -231,11 +231,11 @@ jobs:
         set -exo pipefail
 
         az aks get-credentials \
-          --name "${{ coalesce(parameters.existing_cluster_name, '${CLUSTER}') }}" \
-          --resource-group "${{ coalesce(parameters.existing_cluster_resource_group, '${RESOURCE_GROUP}') }}" \
+          --name "${{ replace(coalesce(parameters.existing_cluster_name, '${CLUSTER}'), 'none', 'dovetail-testing') }}" \
+          --resource-group "${{ replace(coalesce(parameters.existing_cluster_resource_group, '${RESOURCE_GROUP}'), 'none', '$(RUN_ID)') }}" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
-    displayName: Get credentials for ${{ coalesce(parameters.existing_cluster_name, '${CLUSTER}') }}
+    displayName: Get credentials for ${{ replace(coalesce(parameters.existing_cluster_name, '${CLUSTER}'), 'none', 'dovetail-testing') }}
   - script: |2
 
       set -euo pipefail
@@ -267,7 +267,7 @@ jobs:
 - job: cleanup
   displayName: Cleanup
   dependsOn: benchmark
-  condition: and(always(), not(ne('${{ parameters.existing_cluster_name }}', '')), ne('${{ parameters.skip_cleanup }}', 'true'))
+  condition: and(always(), not(ne('${{ parameters.existing_cluster_name }}', 'none')), ne('${{ parameters.skip_cleanup }}', 'true'))
   timeoutInMinutes: 60
   steps:
   - bash: |2

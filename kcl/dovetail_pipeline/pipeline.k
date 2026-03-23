@@ -13,11 +13,11 @@ CLUSTER = "dovetail-testing"
 NODE_POOL = "workerpool"
 
 # Condition: true when user provides an existing cluster (skip create/delete)
-USE_EXISTING_CLUSTER = "ne('\${{ parameters.existing_cluster_name }}', '')"
+USE_EXISTING_CLUSTER = "ne('\${{ parameters.existing_cluster_name }}', 'none')"
 
 # Resolve cluster info: use existing if provided, otherwise use defaults
-EFFECTIVE_CLUSTER = "\${{ coalesce(parameters.existing_cluster_name, '${CLUSTER}') }}"
-EFFECTIVE_RESOURCE_GROUP = "\${{ coalesce(parameters.existing_cluster_resource_group, '${RESOURCE_GROUP}') }}"
+EFFECTIVE_CLUSTER = "\${{ replace(coalesce(parameters.existing_cluster_name, '${CLUSTER}'), 'none', '${CLUSTER}') }}"
+EFFECTIVE_RESOURCE_GROUP = "\${{ replace(coalesce(parameters.existing_cluster_resource_group, '${RESOURCE_GROUP}'), 'none', '${RESOURCE_GROUP}') }}"
 
 requestBody = util.escapeStr("""
 {
@@ -91,15 +91,15 @@ output = ap.Pipeline {
         }
         ap.Parameter {
             name = "existing_cluster_resource_group"
-            displayName = "Existing cluster resource group (leave empty to create new)"
+            displayName = "Existing cluster resource group (leave as none to create new)"
             type = "string"
-            default = ""
+            default = "none"
         }
         ap.Parameter {
             name = "existing_cluster_name"
-            displayName = "Existing cluster name (leave empty to create new)"
+            displayName = "Existing cluster name (leave as none to create new)"
             type = "string"
-            default = ""
+            default = "none"
         }
     ]
 
