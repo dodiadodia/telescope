@@ -64,7 +64,7 @@ steps:
       # Recover from interrupted or broken package installations. The '|| true' ensures the script continues even if dpkg returns a non-zero exit code.
       sudo dpkg --configure -a || true
       sudo apt-get update
-      sudo apt-get -y install bc netcat
+      sudo apt-get -y install bc netcat-openbsd
     displayName: "Install Dependencies"
 
   - template: /steps/cloud/${{ parameters.cloud }}/login.yml
