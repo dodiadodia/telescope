@@ -1,0 +1,41 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: image-pull-n10-smoke
+
+stages:
+- stage: azure_eastus2_image_pull_smoke
+  dependsOn: []
+  jobs:
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: azure
+      regions:
+      - eastus2
+
+      terraform_input_file_mapping:
+      - eastus2: "scenarios/perf-eval/image-pull-n10-smoke/terraform-inputs/azure.tfvars"
+
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/azure/clusterloader2:v20250513"
+
+      topology: cri-resource-consume-smoke
+
+      matrix:
+        image_pull_smoke:
+          node_count: 2
+          max_pods: 10
+          repeats: 1
+          operation_timeout: 5m
+          load_type: memory
+          scrape_kubelets: False
+          scrape_containerd: True
+          containerd_scrape_interval: 5s
+          pod_startup_latency_threshold: 30s
+
+      max_parallel: 1
+      timeout_in_minutes: 120
+      credential_type: service_connection
+      ssh_key_enabled: false
