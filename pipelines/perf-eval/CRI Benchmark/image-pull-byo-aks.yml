@@ -36,8 +36,8 @@ stages:
           pod_startup_latency_threshold: 30s
 
           # 你的测试镜像
-          registry_endpoint: alluxio.azurecr.io
-          test_image: alluxio/alluxio-enterprise:AI-3.7-13.0.29-azure
+          registry_endpoint: registry.k8s.io
+          test_image: e2e-test-images/resource-consumer:1.13
 
           # 复用现有 AKS
           AKS_RESOURCE_GROUP: alluxio-rg
