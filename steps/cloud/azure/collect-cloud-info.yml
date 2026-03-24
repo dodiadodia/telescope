@@ -28,8 +28,8 @@ steps:
       echo "##vso[task.logissue type=error;] Failed to determine AKS resource group or cluster name."
       exit 1
     fi
-    
-    aks_info=$(az aks show --resource-group $RUN_ID --name $aks_name --output json)
+
+    aks_info=$(az aks show --resource-group "${aks_rg}" --name "${aks_name}" --output json)
 
     cloud_info=$(jq -n \
       --arg cloud "azure" \
