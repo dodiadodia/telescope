@@ -6,8 +6,29 @@ steps:
 - script: |
     set -eu
 
-    aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters \
-      --resource-group $RUN_ID --query "[0].name" --location $REGION  --output tsv)
+    #aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters \
+    #  --resource-group $RUN_ID --query "[0].name" --location $REGION  --output tsv)
+
+    if [ -n "${AKS_RESOURCE_GROUP:-}" ] && [ -n "${AKS_CLUSTER_NAME:-}" ]; then
+      echo "Using BYO AKS cluster info from AKS_RESOURCE_GROUP / AKS_CLUSTER_NAME"
+      aks_rg="${AKS_RESOURCE_GROUP}"
+      aks_name="${AKS_CLUSTER_NAME}"
+    else
+      echo "Using legacy RUN_ID-based AKS lookup"
+      aks_rg="${RUN_ID}"
+      aks_name=$(az resource list \
+        --resource-type Microsoft.ContainerService/managedClusters \
+        --resource-group "${aks_rg}" \
+        --query "[0].name" \
+        --location "${REGION}" \
+        --output tsv)
+    fi
+
+    if [ -z "${aks_rg}" ] || [ -z "${aks_name}" ]; then
+      echo "##vso[task.logissue type=error;] Failed to determine AKS resource group or cluster name."
+      exit 1
+    fi
+    
     aks_info=$(az aks show --resource-group $RUN_ID --name $aks_name --output json)
 
     cloud_info=$(jq -n \
