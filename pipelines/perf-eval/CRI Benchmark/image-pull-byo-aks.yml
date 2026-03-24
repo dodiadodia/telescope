@@ -36,14 +36,15 @@ stages:
           pod_startup_latency_threshold: 30s
 
           # 你的测试镜像
-          registry_endpoint: <your-acr-name>.azurecr.io
-          test_image: <repo>/<image>:<tag>
+          registry_endpoint: alluxio.azurecr.io
+          test_image: alluxio/alluxio-enterprise:AI-3.7-13.0.29-azure
 
           # 复用现有 AKS
-          AKS_RESOURCE_GROUP: <your-aks-rg>
-          AKS_CLUSTER_NAME: <your-aks-name>
-          BENCHMARK_NODEPOOL_NAME: benchpool
+          AKS_RESOURCE_GROUP: alluxio-rg
+          AKS_CLUSTER_NAME: acr-test
+          BENCHMARK_NODEPOOL_NAME: userpool
           BENCHMARK_NODE_COUNT: 3
+          
 
       max_parallel: 1
       timeout_in_minutes: 180
