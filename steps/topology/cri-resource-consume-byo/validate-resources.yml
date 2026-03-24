@@ -1,0 +1,48 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: engine
+    type: string
+  - name: regions
+    type: object
+
+steps:
+  - script: |
+      set -euo pipefail
+
+      echo "Checking cluster connectivity..."
+      kubectl get nodes -o wide
+
+      echo "Checking Prometheus node(s)..."
+      prom_nodes=$(kubectl get nodes -l prometheus=true --no-headers 2>/dev/null | wc -l | xargs)
+      if [ "${prom_nodes}" -lt 1 ]; then
+        echo "##vso[task.logissue type=error;] No nodes found with label prometheus=true."
+        exit 1
+      fi
+
+      echo "Checking benchmark node(s)..."
+      bench_nodes=$(kubectl get nodes -l cri-resource-consume=true --no-headers 2>/dev/null | wc -l | xargs)
+      expected_nodes="${NODE_COUNT}"
+
+      if [ "${bench_nodes}" != "${expected_nodes}" ]; then
+        echo "##vso[task.logissue type=error;] Expected ${expected_nodes} nodes with label cri-resource-consume=true, but found ${bench_nodes}."
+        exit 1
+      fi
+
+      echo "Checking Prometheus pods..."
+      # 兼容 kube-prometheus-stack 的常见标签
+      kubectl -n monitoring get pods || true
+
+      ready_count=$(kubectl -n monitoring get pods \
+        -l app.kubernetes.io/name=prometheus \
+        --field-selector=status.phase=Running \
+        --no-headers 2>/dev/null | wc -l | xargs)
+
+      if [ "${ready_count}" -lt 1 ]; then
+        echo "##vso[task.logissue type=error;] No running Prometheus pod found in namespace monitoring."
+        kubectl -n monitoring get pods -o wide || true
+        exit 1
+      fi
+
+      echo "Validation succeeded."
+    displayName: "Validate BYO AKS benchmark prerequisites"

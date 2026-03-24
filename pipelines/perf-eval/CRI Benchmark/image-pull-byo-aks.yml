@@ -1,0 +1,51 @@
+trigger: none
+
+pool:
+  name: telescope-self-hosted
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: image-pull-byo-aks
+
+stages:
+- stage: azure_eastus2_image_pull_byo_aks
+  dependsOn: []
+  jobs:
+  - template: /jobs/competitive-test-byo-aks.yml
+    parameters:
+      cloud: azure
+      regions:
+      - eastus2
+
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/azure/clusterloader2:v20250513"
+
+      topology: cri-resource-consume-byo
+
+      matrix:
+        image_pull_byo:
+          node_count: 3
+          max_pods: 10
+          repeats: 1
+          operation_timeout: 10m
+          load_type: memory
+          scrape_kubelets: False
+          scrape_containerd: True
+          containerd_scrape_interval: 15s
+          pod_startup_latency_threshold: 30s
+
+          # 你的测试镜像
+          registry_endpoint: <your-acr-name>.azurecr.io
+          test_image: <repo>/<image>:<tag>
+
+          # 复用现有 AKS
+          AKS_RESOURCE_GROUP: <your-aks-rg>
+          AKS_CLUSTER_NAME: <your-aks-name>
+          BENCHMARK_NODEPOOL_NAME: benchpool
+          BENCHMARK_NODE_COUNT: 3
+
+      max_parallel: 1
+      timeout_in_minutes: 180
+      credential_type: service_connection
+      ssh_key_enabled: false
