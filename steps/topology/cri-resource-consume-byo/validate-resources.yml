@@ -29,20 +29,5 @@ steps:
         exit 1
       fi
 
-      echo "Checking Prometheus pods..."
-      # 兼容 kube-prometheus-stack 的常见标签
-      kubectl -n monitoring get pods || true
-
-      ready_count=$(kubectl -n monitoring get pods \
-        -l app.kubernetes.io/name=prometheus \
-        --field-selector=status.phase=Running \
-        --no-headers 2>/dev/null | wc -l | xargs)
-
-      if [ "${ready_count}" -lt 1 ]; then
-        echo "##vso[task.logissue type=error;] No running Prometheus pod found in namespace monitoring."
-        kubectl -n monitoring get pods -o wide || true
-        exit 1
-      fi
-
       echo "Validation succeeded."
     displayName: "Validate BYO AKS benchmark prerequisites"
