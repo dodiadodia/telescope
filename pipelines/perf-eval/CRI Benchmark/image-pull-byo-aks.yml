@@ -42,8 +42,6 @@ stages:
           # 复用现有 AKS
           AKS_RESOURCE_GROUP: alluxio-rg
           AKS_CLUSTER_NAME: acr-test
-          BENCHMARK_NODEPOOL_NAME: userpool
-          BENCHMARK_NODE_COUNT: 3
           
 
       max_parallel: 1
