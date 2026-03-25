@@ -54,17 +54,23 @@ spec:
           {{end}}
           {{if eq $TestImage "e2e-test-images/resource-consumer:1.13"}}
         command:
-          - stress
+        - stress
         args:
-          - --vm
-          - "1"
-          - --vm-bytes
-          - {{$Memory}}
-          - --vm-hang
-          - "0"
-          - --timeout
-          - "3600"
-          {{end}}
+        - --vm
+        - "1"
+        - --vm-bytes
+        - {{$Memory}}
+        - --vm-hang
+        - "0"
+        - --timeout
+        - "3600"
+        {{else}}
+        command:
+        - /bin/sh
+        - -c
+        args:
+        - sleep 3600
+        {{end}}
         {{end}}
         resources:
           requests:
