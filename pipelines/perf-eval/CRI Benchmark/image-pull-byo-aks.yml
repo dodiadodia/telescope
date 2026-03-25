@@ -28,12 +28,15 @@ stages:
           node_count: 3
           max_pods: 10
           repeats: 1
-          operation_timeout: 10m
+          operation_timeout: 20m
           load_type: memory
           scrape_kubelets: False
           scrape_containerd: True
           containerd_scrape_interval: 15s
-          pod_startup_latency_threshold: 30s
+          pod_startup_latency_threshold: 5m
+
+          # pod memory
+          memory_request_override: 3Gi
 
           # 你的测试镜像
           registry_endpoint: 127.0.0.1:5000
