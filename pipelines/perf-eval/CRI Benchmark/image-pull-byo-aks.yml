@@ -40,7 +40,7 @@ stages:
 
           # 你的测试镜像
           registry_endpoint: alluxio.azurecr.io
-          test_image: dodia/alluxio-multi-layer:latest
+          test_image: alluxio/alluxio-multi-layer:latest
 
           # 复用现有 AKS
           AKS_RESOURCE_GROUP: alluxio-rg
