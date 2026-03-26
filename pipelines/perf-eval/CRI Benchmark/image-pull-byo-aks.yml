@@ -26,7 +26,7 @@ stages:
       matrix:
         image_pull_byo:
           node_count: 10
-          max_pods: 15
+          max_pods: 10
           repeats: 1
           operation_timeout: 20m
           load_type: memory
