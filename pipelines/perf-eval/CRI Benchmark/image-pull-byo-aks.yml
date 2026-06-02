@@ -25,7 +25,7 @@ stages:
 
       matrix:
         image_pull_byo:
-          node_count: 10
+          node_count: 2
           max_pods: 10
           repeats: 1
           operation_timeout: 30m
@@ -43,8 +43,8 @@ stages:
           test_image: alluxio/alluxio-multi-layer:latest
 
           # 复用现有 AKS
-          AKS_RESOURCE_GROUP: alluxio-rg
-          AKS_CLUSTER_NAME: acr-test
+          AKS_RESOURCE_GROUP: dodia
+          AKS_CLUSTER_NAME: dodia-bench
           
 
       max_parallel: 1
