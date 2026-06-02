@@ -6,6 +6,7 @@ pool:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: image-pull-byo-aks
+  AZURE_SUBSCRIPTION_ID: 1c7898e6-31f3-4f79-bb67-27f906074275
 
 stages:
 - stage: azure_eastus2_image_pull_byo_aks
@@ -15,7 +16,7 @@ stages:
     parameters:
       cloud: azure
       regions:
-      - eastus2
+      - westus
 
       engine: clusterloader2
       engine_input:
