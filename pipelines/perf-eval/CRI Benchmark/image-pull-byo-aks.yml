@@ -40,7 +40,7 @@ stages:
           memory_request_override: 3Gi
 
           # 你的测试镜像
-          registry_endpoint: alluxioregion1.azurecr.io
+          registry_endpoint: alluxio.azurecr.io
           test_image: alluxio/alluxio-multi-layer:latest
 
           # 复用现有 AKS
