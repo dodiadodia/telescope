@@ -40,8 +40,8 @@ stages:
           memory_request_override: 3Gi
 
           # 你的测试镜像
-          registry_endpoint: alluxioregion1.azurecr.io
-          test_image: alluxio/alluxio-multi-layer:latest
+          registry_endpoint: alluxio.azurecr.io
+          test_image: pulltest/docker-pytorch-pytorch:2.4.1-cuda12.1-cudnn9-devel
 
           # 复用现有 AKS
           AKS_RESOURCE_GROUP: dodia
