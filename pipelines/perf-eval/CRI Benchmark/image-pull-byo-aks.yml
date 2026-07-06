@@ -36,6 +36,9 @@ stages:
           containerd_scrape_interval: 15s
           pod_startup_latency_threshold: 20m
 
+          # 每节点固定启动的测试 pod 数（不再按 max_pods - daemonset 数计算）
+          pods_per_node: 4
+
           # pod memory
           memory_request_override: 1Gi
 

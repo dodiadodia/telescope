@@ -19,7 +19,7 @@ MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    registry_endpoint, test_image, os_type, scrape_kubelets, scrape_containerd, containerd_scrape_interval, host_network, override_file, memory_request_override=None):
+    registry_endpoint, test_image, os_type, scrape_kubelets, scrape_containerd, containerd_scrape_interval, host_network, override_file, memory_request_override=None, pods_per_node=None):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -51,7 +51,13 @@ def override_config_clusterloader2(
     # Calculate request cpu and memory for each pod
     daemonset_count = client.get_daemonsets_pods_count("kube-system", node.metadata.name)
     logger.info(f"Node {node.metadata.name} has {daemonset_count} daemonset pods")
-    pod_count = max_pods - daemonset_count
+    if pods_per_node:
+        pod_count = pods_per_node
+        logger.info(f"Using pods_per_node override: {pod_count} test pods per node")
+    else:
+        pod_count = max_pods - daemonset_count
+    if pod_count <= 0:
+        raise Exception(f"Invalid test pod count per node: {pod_count} (max_pods: {max_pods}, daemonset_count: {daemonset_count}, pods_per_node: {pods_per_node})")
     cpu_request = cpu_value // pod_count
 
     # Use override if provided, otherwise calculate
@@ -331,6 +337,13 @@ def main():
         help="Override memory request per pod (e.g., 100Mi, 1Gi, 500Ki)"
     )
 
+    parser_override.add_argument(
+        "--pods_per_node",
+        type=int,
+        default=None,
+        help="Fixed number of test pods per node (overrides max_pods - daemonset_count calculation)"
+    )
+
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser(
         "execute", help="Execute resource consume operation"
@@ -430,6 +443,7 @@ def main():
             args.host_network,
             args.cl2_override_file,
             args.memory_request_override,
+            args.pods_per_node,
         )
     elif args.command == "execute":
         execute_clusterloader2(
