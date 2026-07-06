@@ -27,7 +27,7 @@ stages:
       matrix:
         image_pull_byo:
           node_count: 20
-          max_pods: 10
+          max_pods: 13
           repeats: 1
           operation_timeout: 30m
           load_type: memory
@@ -37,7 +37,7 @@ stages:
           pod_startup_latency_threshold: 20m
 
           # pod memory
-          memory_request_override: 3Gi
+          memory_request_override: 1Gi
 
           # 你的测试镜像
           registry_endpoint: alluxio.azurecr.io
