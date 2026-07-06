@@ -37,14 +37,14 @@ stages:
           pod_startup_latency_threshold: 20m
 
           # 每节点固定启动的测试 pod 数（不再按 max_pods - daemonset 数计算）
-          pods_per_node: 4
+          pods_per_node: 3
 
           # pod memory
           memory_request_override: 1Gi
 
           # 你的测试镜像
-          registry_endpoint: alluxio.azurecr.io
-          test_image: pulltest/docker-vllm-vllm-openai:v0.7.0
+          registry_endpoint: alluxioregion1.azurecr.io
+          test_image: alluxio/alluxio-multi-layer:latest
 
           # 复用现有 AKS
           AKS_RESOURCE_GROUP: dodia
